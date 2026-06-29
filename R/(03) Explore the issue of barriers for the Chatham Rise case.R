@@ -41,11 +41,17 @@ if ( !dir.exists( MapsDir ) ) { dir.create( MapsDir ) }
 
 ######## Load and process shapefiles
 contour_200m <- read_sf( dsn = make.filename( "NZ_200_m.shp", DIR$Input ) )
+crs_contour_200m <- st_crs( contour_200m )
 contour_200m <- st_transform( contour_200m, crs = "+init=epsg:4326" )
 contour_200m <- sf::st_shift_longitude( contour_200m )
 contour_500m <- read_sf( dsn = make.filename( "NZ_500_m.shp", DIR$Input ) )
 contour_500m <- st_transform( contour_500m, crs = "+init=epsg:4326" )
 contour_500m <- sf::st_shift_longitude( contour_500m )
+depth_contours <- read_sf( dsn = make.filename( "NZ_region_bathymetry_contours.shp", DIR$Input ) )
+st_crs( depth_contours ) <- crs_contour_200m
+contour_800m <- depth_contours %>% filter( ELEV == -800 )
+contour_800m <- st_transform( contour_800m, crs = "+init=epsg:4326" )
+contour_800m <- sf::st_shift_longitude( contour_800m )
 
 ######## Load mapping parameters 
 load( file = make.filename( "Mapping_parameters_Chatham_Rise_hake.RData", DIR$Input ) )
@@ -57,9 +63,13 @@ location_3 <- "Deep Chatham Rise"
 location_of_interest_1 <- c( 183.2, -43.8 )
 location_of_interest_2 <- c( 181, -44 )
 location_of_interest_3 <- c( 179, -45 )
-Mapping_parameters[["legend_x"]] <- c( 0.89, 0.94 ) 
-Mapping_parameters[["legend_y"]] <- c( 0.02, 0.22 ) 
+Mapping_parameters[["legend_x"]] <- c( 0.84, 0.89 ) 
+Mapping_parameters[["legend_y"]] <- c( 0.05, 0.25 ) 
 Mapping_parameters[["xlim_map"]] <- c( 172.5, 187.0 )
+Mapping_parameters[["xaxis"]] <- seq( from = 170, to = 190, by = 5 )
+Mapping_parameters[["xaxis_label"]] <- as.character( Mapping_parameters[["xaxis"]] ) 
+Mapping_parameters[["yaxis"]] <- seq( from = -46, to = -42, by = 1 )
+Mapping_parameters[["yaxis_label"]] <- as.character( Mapping_parameters[["yaxis"]] ) 
 map_sf <- Mapping_parameters[["land_data"]]
 cutoff <- 0.1
 barrier_stiffness <- 0.01
@@ -191,9 +201,6 @@ pause( 3 ); graphics.off()
 
 Data$Region <- ifelse( Depth > 800, "DEEP", "MIDDEPTH" )
 Data$Region <- ifelse( Depth <= 500, "SHALLOW", Data$Region )
-Table( Data$Region )
-####      DEEP  MIDDEPTH   SHALLOW TOTAL.OBS 
-####       394      1115      1991      3500 
 
 mesh_cov <- add_mesh_covariates(
   	mesh = mesh,
@@ -207,8 +214,8 @@ mesh_cov$vertex_covariates <- data.frame(
 )
 nn <- RANN::nn2( data = Data[,c( 'Lon', 'Lat' )], query = mesh_cov$triangle_covariates[,1 : 2], k = 1 )
 Region <- Data[nn$nn.idx, 'Region']
-mesh_cov$triangle_covariates$DEPTH_STRATUM <- ifelse( Region == "SHALLOW", 0.5, 0 )
-mesh_cov$triangle_covariates$DEPTH_STRATUM <- ifelse( Region == "MIDDEPTH", 0.25, mesh_cov$triangle_covariates$DEPTH_STRATUM )
+mesh_cov$triangle_covariates$DEPTH_STRATUM <- ifelse( Region == "SHALLOW", 0.8, 0 )
+mesh_cov$triangle_covariates$DEPTH_STRATUM <- ifelse( Region == "MIDDEPTH", 0.2, mesh_cov$triangle_covariates$DEPTH_STRATUM )
 
 plot( mesh_cov )
 pause( 3 ); graphics.off()
@@ -352,9 +359,6 @@ pause( 3 ); graphics.off()
 
 Data$Region <- ifelse( Depth > 800, "DEEP", "MIDDEPTH" )
 Data$Region <- ifelse( Depth <= 500, "SHALLOW", Data$Region )
-Table( Data$Region )
-####      DEEP  MIDDEPTH   SHALLOW TOTAL.OBS 
-####       394      1115      1991      3500 
 
 mesh_cov <- add_mesh_covariates(
   	mesh = mesh,
@@ -368,8 +372,8 @@ mesh_cov$vertex_covariates <- data.frame(
 )
 nn <- RANN::nn2( data = Data[,c( 'Lon', 'Lat' )], query = mesh_cov$triangle_covariates[,1 : 2], k = 1 )
 Region <- Data[nn$nn.idx, 'Region']
-mesh_cov$triangle_covariates$DEPTH_STRATUM <- ifelse( Region == "DEEP", 0.5, 0 )
-mesh_cov$triangle_covariates$DEPTH_STRATUM <- ifelse( Region == "MIDDEPTH", 0.25, mesh_cov$triangle_covariates$DEPTH_STRATUM )
+mesh_cov$triangle_covariates$DEPTH_STRATUM <- ifelse( Region == "DEEP", 0.8, 0 )
+mesh_cov$triangle_covariates$DEPTH_STRATUM <- ifelse( Region == "MIDDEPTH", 0.2, mesh_cov$triangle_covariates$DEPTH_STRATUM )
 
 plot( mesh_cov )
 pause( 3 ); graphics.off()
@@ -503,17 +507,20 @@ zlim <- range( c( r_SPDE_Isotropy_1$r1, r_SPDE_Isotropy_2$r1, r_SPDE_Isotropy_3$
 	r_SPDE_Barrier_Scenario1_1$r1, r_SPDE_Barrier_Scenario1_2$r1, r_SPDE_Barrier_Scenario1_3$r1, 
 	r_SPDE_Barrier_Scenario2_1$r1, r_SPDE_Barrier_Scenario2_2$r1, r_SPDE_Barrier_Scenario2_3$r1 ), na.rm = TRUE ) 
 
-#### Produce a version of the map with a legend and save it 
+#### Produce a version of the map with a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 xl = ( 1 - Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[1] + 
 	( Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[2]
 xr = ( 1 - Mapping_parameters[["legend_x"]][2] ) * par( 'usr' )[1] + 
@@ -527,22 +534,25 @@ gradient = c( "x", "y" )[2]
 plotrix::color.legend( xl = xl, yb = yb, xr = xr, yt = yt, 
 	legend = round( seq( zlim[1], zlim[2], length = 5 ), digits = 2 ),
 	rect.col = sf.colors( n = 10, cutoff.tails = c( 0.35, 0.2 ), alpha = 1, categorical = FALSE ),
-	cex = 1., align = align, gradient = gradient, col = "black" )
+	cex = 1.2, align = align, gradient = gradient, col = "black" )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_1, "_", 
 	scenario, "_with a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()
 
 #### Produce a version of the map without a legend and save it 
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_1, "_", 
 	scenario, "_without a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()
@@ -555,17 +565,20 @@ zlim <- range( c( r_SPDE_Isotropy_1$r1, r_SPDE_Isotropy_2$r1, r_SPDE_Isotropy_3$
 	r_SPDE_Barrier_Scenario1_1$r1, r_SPDE_Barrier_Scenario1_2$r1, r_SPDE_Barrier_Scenario1_3$r1, 
 	r_SPDE_Barrier_Scenario2_1$r1, r_SPDE_Barrier_Scenario2_2$r1, r_SPDE_Barrier_Scenario2_3$r1 ), na.rm = TRUE ) 
 
-#### Produce a version of the map with a legend and save it 
+#### Produce a version of the map with a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 xl = ( 1 - Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[1] + 
 	( Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[2]
 xr = ( 1 - Mapping_parameters[["legend_x"]][2] ) * par( 'usr' )[1] + 
@@ -579,22 +592,25 @@ gradient = c( "x", "y" )[2]
 plotrix::color.legend( xl = xl, yb = yb, xr = xr, yt = yt, 
 	legend = round( seq( zlim[1], zlim[2], length = 5 ), digits = 2 ),
 	rect.col = sf.colors( n = 10, cutoff.tails = c( 0.35, 0.2 ), alpha = 1, categorical = FALSE ),
-	cex = 1., align = align, gradient = gradient, col = "black" )
+	cex = 1.2, align = align, gradient = gradient, col = "black" )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_2, "_", 
 	scenario, "_with a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()
 
 #### Produce a version of the map without a legend and save it 
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_2, "_", 
 	scenario, "_without a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()
@@ -607,17 +623,20 @@ zlim <- range( c( r_SPDE_Isotropy_1$r1, r_SPDE_Isotropy_2$r1, r_SPDE_Isotropy_3$
 	r_SPDE_Barrier_Scenario1_1$r1, r_SPDE_Barrier_Scenario1_2$r1, r_SPDE_Barrier_Scenario1_3$r1, 
 	r_SPDE_Barrier_Scenario2_1$r1, r_SPDE_Barrier_Scenario2_2$r1, r_SPDE_Barrier_Scenario2_3$r1 ), na.rm = TRUE ) 
 
-#### Produce a version of the map with a legend and save it 
+#### Produce a version of the map with a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 xl = ( 1 - Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[1] + 
 	( Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[2]
 xr = ( 1 - Mapping_parameters[["legend_x"]][2] ) * par( 'usr' )[1] + 
@@ -631,22 +650,25 @@ gradient = c( "x", "y" )[2]
 plotrix::color.legend( xl = xl, yb = yb, xr = xr, yt = yt, 
 	legend = round( seq( zlim[1], zlim[2], length = 5 ), digits = 2 ),
 	rect.col = sf.colors( n = 10, cutoff.tails = c( 0.35, 0.2 ), alpha = 1, categorical = FALSE ),
-	cex = 1., align = align, gradient = gradient, col = "black" )
+	cex = 1.2, align = align, gradient = gradient, col = "black" )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_3, "_", 
 	scenario, "_with a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()
 
 #### Produce a version of the map without a legend and save it 
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_3, "_", 
 	scenario, "_without a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()
@@ -659,17 +681,20 @@ zlim <- range( c( r_SPDE_Isotropy_1$r1, r_SPDE_Isotropy_2$r1, r_SPDE_Isotropy_3$
 	r_SPDE_Barrier_Scenario1_1$r1, r_SPDE_Barrier_Scenario1_2$r1, r_SPDE_Barrier_Scenario1_3$r1, 
 	r_SPDE_Barrier_Scenario2_1$r1, r_SPDE_Barrier_Scenario2_2$r1, r_SPDE_Barrier_Scenario2_3$r1 ), na.rm = TRUE ) 
 
-#### Produce a version of the map with a legend and save it 
+#### Produce a version of the map with a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 xl = ( 1 - Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[1] + 
 	( Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[2]
 xr = ( 1 - Mapping_parameters[["legend_x"]][2] ) * par( 'usr' )[1] + 
@@ -683,22 +708,25 @@ gradient = c( "x", "y" )[2]
 plotrix::color.legend( xl = xl, yb = yb, xr = xr, yt = yt, 
 	legend = round( seq( zlim[1], zlim[2], length = 5 ), digits = 2 ),
 	rect.col = sf.colors( n = 10, cutoff.tails = c( 0.35, 0.2 ), alpha = 1, categorical = FALSE ),
-	cex = 1., align = align, gradient = gradient, col = "black" )
+	cex = 1.2, align = align, gradient = gradient, col = "black" )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_1, "_", 
 	scenario, "_with a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()
 
 #### Produce a version of the map without a legend and save it 
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_1, "_", 
 	scenario, "_without a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()
@@ -711,17 +739,20 @@ zlim <- range( c( r_SPDE_Isotropy_1$r1, r_SPDE_Isotropy_2$r1, r_SPDE_Isotropy_3$
 	r_SPDE_Barrier_Scenario1_1$r1, r_SPDE_Barrier_Scenario1_2$r1, r_SPDE_Barrier_Scenario1_3$r1, 
 	r_SPDE_Barrier_Scenario2_1$r1, r_SPDE_Barrier_Scenario2_2$r1, r_SPDE_Barrier_Scenario2_3$r1 ), na.rm = TRUE ) 
 
-#### Produce a version of the map with a legend and save it 
+#### Produce a version of the map with a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 xl = ( 1 - Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[1] + 
 	( Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[2]
 xr = ( 1 - Mapping_parameters[["legend_x"]][2] ) * par( 'usr' )[1] + 
@@ -735,22 +766,25 @@ gradient = c( "x", "y" )[2]
 plotrix::color.legend( xl = xl, yb = yb, xr = xr, yt = yt, 
 	legend = round( seq( zlim[1], zlim[2], length = 5 ), digits = 2 ),
 	rect.col = sf.colors( n = 10, cutoff.tails = c( 0.35, 0.2 ), alpha = 1, categorical = FALSE ),
-	cex = 1., align = align, gradient = gradient, col = "black" )
+	cex = 1.2, align = align, gradient = gradient, col = "black" )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_2, "_", 
 	scenario, "_with a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()
 
 #### Produce a version of the map without a legend and save it 
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_2, "_", 
 	scenario, "_without a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()
@@ -763,17 +797,20 @@ zlim <- range( c( r_SPDE_Isotropy_1$r1, r_SPDE_Isotropy_2$r1, r_SPDE_Isotropy_3$
 	r_SPDE_Barrier_Scenario1_1$r1, r_SPDE_Barrier_Scenario1_2$r1, r_SPDE_Barrier_Scenario1_3$r1, 
 	r_SPDE_Barrier_Scenario2_1$r1, r_SPDE_Barrier_Scenario2_2$r1, r_SPDE_Barrier_Scenario2_3$r1 ), na.rm = TRUE ) 
 
-#### Produce a version of the map with a legend and save it 
+#### Produce a version of the map with a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 xl = ( 1 - Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[1] + 
 	( Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[2]
 xr = ( 1 - Mapping_parameters[["legend_x"]][2] ) * par( 'usr' )[1] + 
@@ -787,22 +824,25 @@ gradient = c( "x", "y" )[2]
 plotrix::color.legend( xl = xl, yb = yb, xr = xr, yt = yt, 
 	legend = round( seq( zlim[1], zlim[2], length = 5 ), digits = 2 ),
 	rect.col = sf.colors( n = 10, cutoff.tails = c( 0.35, 0.2 ), alpha = 1, categorical = FALSE ),
-	cex = 1., align = align, gradient = gradient, col = "black" )
+	cex = 1.2, align = align, gradient = gradient, col = "black" )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_3, "_", 
 	scenario, "_with a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()
 
 #### Produce a version of the map without a legend and save it 
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_3, "_", 
 	scenario, "_without a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()
@@ -815,17 +855,20 @@ zlim <- range( c( r_SPDE_Isotropy_1$r1, r_SPDE_Isotropy_2$r1, r_SPDE_Isotropy_3$
 	r_SPDE_Barrier_Scenario1_1$r1, r_SPDE_Barrier_Scenario1_2$r1, r_SPDE_Barrier_Scenario1_3$r1, 
 	r_SPDE_Barrier_Scenario2_1$r1, r_SPDE_Barrier_Scenario2_2$r1, r_SPDE_Barrier_Scenario2_3$r1 ), na.rm = TRUE ) 
 
-#### Produce a version of the map with a legend and save it 
+#### Produce a version of the map with a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 xl = ( 1 - Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[1] + 
 	( Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[2]
 xr = ( 1 - Mapping_parameters[["legend_x"]][2] ) * par( 'usr' )[1] + 
@@ -839,22 +882,25 @@ gradient = c( "x", "y" )[2]
 plotrix::color.legend( xl = xl, yb = yb, xr = xr, yt = yt, 
 	legend = round( seq( zlim[1], zlim[2], length = 5 ), digits = 2 ),
 	rect.col = sf.colors( n = 10, cutoff.tails = c( 0.35, 0.2 ), alpha = 1, categorical = FALSE ),
-	cex = 1., align = align, gradient = gradient, col = "black" )
+	cex = 1.2, align = align, gradient = gradient, col = "black" )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_1, "_", 
 	scenario, "_with a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()
 
 #### Produce a version of the map without a legend and save it 
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_1, "_", 
 	scenario, "_without a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()
@@ -867,17 +913,20 @@ zlim <- range( c( r_SPDE_Isotropy_1$r1, r_SPDE_Isotropy_2$r1, r_SPDE_Isotropy_3$
 	r_SPDE_Barrier_Scenario1_1$r1, r_SPDE_Barrier_Scenario1_2$r1, r_SPDE_Barrier_Scenario1_3$r1, 
 	r_SPDE_Barrier_Scenario2_1$r1, r_SPDE_Barrier_Scenario2_2$r1, r_SPDE_Barrier_Scenario2_3$r1 ), na.rm = TRUE ) 
 
-#### Produce a version of the map with a legend and save it 
+#### Produce a version of the map with a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 xl = ( 1 - Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[1] + 
 	( Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[2]
 xr = ( 1 - Mapping_parameters[["legend_x"]][2] ) * par( 'usr' )[1] + 
@@ -891,22 +940,25 @@ gradient = c( "x", "y" )[2]
 plotrix::color.legend( xl = xl, yb = yb, xr = xr, yt = yt, 
 	legend = round( seq( zlim[1], zlim[2], length = 5 ), digits = 2 ),
 	rect.col = sf.colors( n = 10, cutoff.tails = c( 0.35, 0.2 ), alpha = 1, categorical = FALSE ),
-	cex = 1., align = align, gradient = gradient, col = "black" )
+	cex = 1.2, align = align, gradient = gradient, col = "black" )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_2, "_", 
 	scenario, "_with a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()
 
 #### Produce a version of the map without a legend and save it 
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_2, "_", 
 	scenario, "_without a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()
@@ -919,17 +971,20 @@ zlim <- range( c( r_SPDE_Isotropy_1$r1, r_SPDE_Isotropy_2$r1, r_SPDE_Isotropy_3$
 	r_SPDE_Barrier_Scenario1_1$r1, r_SPDE_Barrier_Scenario1_2$r1, r_SPDE_Barrier_Scenario1_3$r1, 
 	r_SPDE_Barrier_Scenario2_1$r1, r_SPDE_Barrier_Scenario2_2$r1, r_SPDE_Barrier_Scenario2_3$r1 ), na.rm = TRUE ) 
 
-#### Produce a version of the map with a legend and save it 
+#### Produce a version of the map with a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 xl = ( 1 - Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[1] + 
 	( Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[2]
 xr = ( 1 - Mapping_parameters[["legend_x"]][2] ) * par( 'usr' )[1] + 
@@ -943,22 +998,25 @@ gradient = c( "x", "y" )[2]
 plotrix::color.legend( xl = xl, yb = yb, xr = xr, yt = yt, 
 	legend = round( seq( zlim[1], zlim[2], length = 5 ), digits = 2 ),
 	rect.col = sf.colors( n = 10, cutoff.tails = c( 0.35, 0.2 ), alpha = 1, categorical = FALSE ),
-	cex = 1., align = align, gradient = gradient, col = "black" )
+	cex = 1.2, align = align, gradient = gradient, col = "black" )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_3, "_", 
 	scenario, "_with a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()
 
 #### Produce a version of the map without a legend and save it 
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1 ) )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.25, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
-plot( map_sf, col = makeTransparent( "gray88", alpha = 170 ), border = NA, add = TRUE )
-plot( contour_200m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
-plot( contour_500m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
+plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
+plot( contour_500m, col = "white", lwd = 3.5, lty = 2, add = TRUE )
+plot( contour_800m, col = "gray48", lwd = 3.5, lty = 2, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_3, "_", 
 	scenario, "_without a legend" ), path = MapsDir, type = "png" )
 pause( 2 ); graphics.off()

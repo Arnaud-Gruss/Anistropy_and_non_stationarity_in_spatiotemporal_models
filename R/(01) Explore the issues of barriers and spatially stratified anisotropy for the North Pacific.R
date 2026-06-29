@@ -47,15 +47,19 @@ location_1 <- "Gulf of Alaska"
 location_2 <- "Bering Sea"
 map_sf <- st_union( ne_countries( country = c( "united states of america", "canada" ) , scale = 10 ) )
 location_of_interest_1 <- c( -151.756347, 58.820505 )
-location_of_interest_2 <- c( -170.960448, 60.550198 )
+location_of_interest_2 <- c( -164.236254, 59.059267 )
 Mapping_parameters <- list()
 Mapping_parameters[["xlim_map"]] <- c( -178, -128 )
 Mapping_parameters[["ylim_map"]] <- c( 42, 68.37320 )
 Mapping_parameters[["land_color"]] <- makeTransparent( "gray88", alpha = 170 )
+Mapping_parameters[["xaxis"]] <- seq( from = -180, to = -120, by = 10 )
+Mapping_parameters[["xaxis_label"]] <- as.character( Mapping_parameters[["xaxis"]] ) 
+Mapping_parameters[["yaxis"]] <- seq( from = 30, to = 70, by = 5 )
+Mapping_parameters[["yaxis_label"]] <- as.character( Mapping_parameters[["yaxis"]] ) 
 Mapping_parameters[["legend_x"]] <- c( 0.86, 0.91 )
-Mapping_parameters[["legend_y"]] <- c( 0.72, 0.97 )
+Mapping_parameters[["legend_y"]] <- c( 0.62, 0.87 )
 cutoff <- 0.5
-barrier_stiffness <- 1e-16
+barrier_stiffness <- 0.04
 cellsize <- 0.5 * c( 1, 1 )
 
 ######## Load and process data
@@ -219,9 +223,9 @@ fit_norun <- tinyVAST(
   	variable_column = "var",
   	development = list(
 		vertex_formula = ~
-			I(x_goa + y_goa) + y_goa +
-      			I(x_bs + y_bs) + y_bs +
-			0
+      		I(x + y) + y +
+				I(x_goa + y_goa) + y_goa +
+				0 
   	),
 	control = tinyVASTcontrol( 
 		verbose = TRUE, 
@@ -234,10 +238,10 @@ fit_norun <- tinyVAST(
 	)
 )
 tmb_par <- fit_norun$tmb_inputs$tmb_par
-tmb_par$ln_H_input[3] <- 0
+tmb_par$ln_H_input[3] <- 50
 tmb_par$ln_H_input[4] <- 50
-tmb_par$ln_H_input[5] <- 50
-tmb_par$ln_H_input[6] <- 50
+tmb_par$ln_H_input[5] <- 0
+tmb_par$ln_H_input[6] <- 200
 
 ######## Fit the tinyVAST model using the SPDE method and covariate-based regional anisotropy 
 Regional_Anisotropy <- tinyVAST( 
@@ -252,9 +256,9 @@ Regional_Anisotropy <- tinyVAST(
   	variable_column = "var",
   	development = list(
 		vertex_formula = ~
-			I(x_goa + y_goa) + y_goa +
-      			I(x_bs + y_bs) + y_bs +
-			0
+      		I(x + y) + y +
+				I(x_goa + y_goa) + y_goa +
+				0 
   	),
 	control = tinyVASTcontrol( 
 		verbose = TRUE, 
@@ -379,9 +383,9 @@ fit_norun <- tinyVAST(
   	development = list(
 		triangle_formula = ~ offset(barrier_polygon),
 		vertex_formula = ~
-			I(x_goa + y_goa) + y_goa +
-      			I(x_bs + y_bs) + y_bs +
-			0
+      		I(x + y) + y +
+				I(x_goa + y_goa) + y_goa +
+				0 
   	),
 	control = tinyVASTcontrol( 
 		verbose = TRUE, 
@@ -390,14 +394,15 @@ fit_norun <- tinyVAST(
 		trace = 1,
     		use_anisotropy = FALSE, 
 		getsd = FALSE,
-    		calculate = FALSE
+    		calculate = FALSE, 
+		barrier_stiffness = barrier_stiffness
 	)
 )
 tmb_par <- fit_norun$tmb_inputs$tmb_par
-tmb_par$ln_H_input[3] <- 0
+tmb_par$ln_H_input[3] <- 50
 tmb_par$ln_H_input[4] <- 50
-tmb_par$ln_H_input[5] <- 50
-tmb_par$ln_H_input[6] <- 50
+tmb_par$ln_H_input[5] <- 0
+tmb_par$ln_H_input[6] <- 200
 
 ######## Fit the tinyVAST model using the SPDE-Barrier method and covariate-based regional anisotropy 
 Regional_Anisotropy_Barrier <- tinyVAST( 
@@ -413,9 +418,9 @@ Regional_Anisotropy_Barrier <- tinyVAST(
   	development = list(
 		triangle_formula = ~ offset(barrier_polygon),
 		vertex_formula = ~
-			I(x_goa + y_goa) + y_goa +
-      			I(x_bs + y_bs) + y_bs +
-			0
+      		I(x + y) + y +
+				I(x_goa + y_goa) + y_goa +
+				0 
   	),
 	control = tinyVASTcontrol( 
 		verbose = TRUE, 
@@ -425,6 +430,7 @@ Regional_Anisotropy_Barrier <- tinyVAST(
     		use_anisotropy = FALSE, 
 		getsd = FALSE,
     		calculate = FALSE, 
+		barrier_stiffness = barrier_stiffness,
 		tmb_par = tmb_par
 	)
 )
@@ -481,13 +487,16 @@ zlim <- range( c( r_SPDE_Isotropy_1$r1, r_SPDE_Isotropy_2$r1,
 
 #### Produce a version of the map with a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1.5 ), cex = 1.3 )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.1, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
 plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 xl = ( 1 - Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[1] + 
 	( Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[2]
 xr = ( 1 - Mapping_parameters[["legend_x"]][2] ) * par( 'usr' )[1] + 
@@ -508,13 +517,16 @@ pause( 3 ); graphics.off()
 
 #### Produce a version of the map without a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1.5 ), cex = 1.3 )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.1, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
 plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_1, "_", 
 	scenario, "_without a legend" ), path = MapsDir, type = "png" )
 pause( 3 ); graphics.off()
@@ -529,13 +541,16 @@ zlim <- range( c( r_SPDE_Isotropy_1$r1, r_SPDE_Isotropy_2$r1,
 
 #### Produce a version of the map with a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1.5 ), cex = 1.3 )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.1, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
 plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 xl = ( 1 - Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[1] + 
 	( Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[2]
 xr = ( 1 - Mapping_parameters[["legend_x"]][2] ) * par( 'usr' )[1] + 
@@ -556,13 +571,16 @@ pause( 3 ); graphics.off()
 
 #### Produce a version of the map without a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1.5 ), cex = 1.3 )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.1, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
 plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_2, "_", 
 	scenario, "_without a legend" ), path = MapsDir, type = "png" )
 pause( 3 ); graphics.off()
@@ -577,13 +595,16 @@ zlim <- range( c( r_SPDE_Isotropy_1$r1, r_SPDE_Isotropy_2$r1,
 
 #### Produce a version of the map with a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1.5 ), cex = 1.3 )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.1, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
 plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 xl = ( 1 - Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[1] + 
 	( Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[2]
 xr = ( 1 - Mapping_parameters[["legend_x"]][2] ) * par( 'usr' )[1] + 
@@ -604,13 +625,16 @@ pause( 3 ); graphics.off()
 
 #### Produce a version of the map without a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1.5 ), cex = 1.3 )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.1, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
 plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_1, "_", 
 	scenario, "_without a legend" ), path = MapsDir, type = "png" )
 pause( 3 ); graphics.off()
@@ -625,13 +649,16 @@ zlim <- range( c( r_SPDE_Isotropy_1$r1, r_SPDE_Isotropy_2$r1,
 
 #### Produce a version of the map with a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1.5 ), cex = 1.3 )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.1, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
 plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 xl = ( 1 - Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[1] + 
 	( Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[2]
 xr = ( 1 - Mapping_parameters[["legend_x"]][2] ) * par( 'usr' )[1] + 
@@ -652,13 +679,16 @@ pause( 3 ); graphics.off()
 
 #### Produce a version of the map without a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1.5 ), cex = 1.3 )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.1, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
 plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_2, "_", 
 	scenario, "_without a legend" ), path = MapsDir, type = "png" )
 pause( 3 ); graphics.off()
@@ -673,13 +703,16 @@ zlim <- range( c( r_SPDE_Isotropy_1$r1, r_SPDE_Isotropy_2$r1,
 
 #### Produce a version of the map with a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1.5 ), cex = 1.3 )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.1, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
 plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 xl = ( 1 - Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[1] + 
 	( Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[2]
 xr = ( 1 - Mapping_parameters[["legend_x"]][2] ) * par( 'usr' )[1] + 
@@ -700,13 +733,16 @@ pause( 3 ); graphics.off()
 
 #### Produce a version of the map without a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1.5 ), cex = 1.3 )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.1, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
 plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_1, "_", 
 	scenario, "_without a legend" ), path = MapsDir, type = "png" )
 pause( 3 ); graphics.off()
@@ -721,13 +757,16 @@ zlim <- range( c( r_SPDE_Isotropy_1$r1, r_SPDE_Isotropy_2$r1,
 
 #### Produce a version of the map with a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1.5 ), cex = 1.3 )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.1, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
 plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 xl = ( 1 - Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[1] + 
 	( Mapping_parameters[["legend_x"]][1] ) * par( 'usr' )[2]
 xr = ( 1 - Mapping_parameters[["legend_x"]][2] ) * par( 'usr' )[1] + 
@@ -748,13 +787,16 @@ pause( 3 ); graphics.off()
 
 #### Produce a version of the map without a legend and save it
 new.graph( 0.5 )
-par( mar = c( 4.5, 4.5, 1, 1.5 ), cex = 1.3 )
-plot( Mapping_parameters[["xlim_map"]], Mapping_parameters[["ylim_map"]], 
-	xlim = Mapping_parameters[["xlim_map"]], ylim = Mapping_parameters[["ylim_map"]], 
-	type = "n", ylab = "Latitude (°N)", xlab = "Longitude (°E)", cex.lab = 1.1, font.lab = 2 )
-plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, add = TRUE ) 
+par( oma = c( 3, 3, 0, 0 ), cex = 1.1 )
+plot( plot_sf, border = NA, reset = FALSE, key.pos = NULL, main = "", axes = FALSE, 
+	xlim = st_bbox(plot_sf)[c( 1, 3 )], ylim = st_bbox(plot_sf)[c( 2, 4 )] ) 
 plot( map_sf, col = Mapping_parameters[["land_color"]], border = NA, add = TRUE )
 box()
+axis( side = 1, at = Mapping_parameters[["xaxis"]], labels = Mapping_parameters[["xaxis_label"]] )
+axis( side = 2, at = Mapping_parameters[["yaxis"]], labels = Mapping_parameters[["yaxis_label"]] )
+minor.tick( nx = 2, ny = 1 )
+mtext( side = 1, outer = TRUE, "Longitude (°E)", cex = 1.25, line = par()$oma[1]/2, padj = 0 )
+mtext( side = 2, outer = TRUE, "Latitude (°N)", cex = 1.25, line = par()$oma[2]/2, padj = 0, las = 0 )
 SavePlot( filename = paste0( "Approximated spatial correlation for the ", location_2, "_", 
 	scenario, "_without a legend" ), path = MapsDir, type = "png" )
 pause( 3 ); graphics.off()
