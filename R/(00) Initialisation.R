@@ -63,7 +63,7 @@ assign.directories <- function ( base = "", subdir = "" ) {
 ######## Find a specific user for setup 
 if ( Sys.info()[["user"]] == "arnau" ) { #### Arnaud Grüss
 
-	DIR <- assign.directories( base = "D:\\END24308\\Covariate_based_anisotropy_paper\\" )
+	DIR <- assign.directories( base = "D:\\END24308\\Non_stationarity_paper\\" )
 
 } else if ( Sys.info()[["user"]] == "Other_user" ) {
 
