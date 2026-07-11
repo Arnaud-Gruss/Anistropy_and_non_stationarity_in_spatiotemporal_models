@@ -4,7 +4,7 @@
 ##
 ##############################################################################################################################
 
-In this repository, you will find all necessary materials for the covariate-based anisotropy paper. 
+In this repository, you will find all necessary materials for the non-stationarity paper. 
 All analyses are conducted within the R software environment. 
 
 Please also note the following:
