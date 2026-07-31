@@ -54,7 +54,7 @@ location_of_interest_1 <- c( 172.97, -40.67 )
 location_of_interest_2 <- c( 171, -42.3 )
 cutoff <- 0.2
 barrier_stiffness <- 0.001
-cellsize <- 0.12 * c( 1, 1 )
+cellsize <- 0.025 * c( 1, 1 )
 Mapping_parameters[["land_color"]] <- makeTransparent( "gray88", alpha = 170 )
 Mapping_parameters[["xaxis"]] <- seq( from = 168, to = 175, by = 1 )
 Mapping_parameters[["xaxis_label"]] <- as.character( Mapping_parameters[["xaxis"]] ) 
@@ -682,16 +682,19 @@ pause( 3 ); graphics.off()
 ######## Save the estimated tinyVAST models in a .RData file 
 save( SPDE_Isotropy, Regional_Anisotropy, Regional_Anisotropy_Barrier, 
 	file = make.filename( "Estimated_tinyVAST_models_West_Coast_South_Island.RData", DIR$Output ) )
- 
+
 ######## Generate predictions for each fishing year of the time period with the estimated tinyVAST models 
 ######## and save these predictions in a .RData file
-#### Load the estimated tinyVAST models and the prediction grid needed for generating predictions
+#### Load the estimated tinyVAST models and define prediction grids
 load( file = make.filename( "Estimated_tinyVAST_models_West_Coast_South_Island.RData", DIR$Output ) )
+load( file = make.filename( "Wider_prediction_grid_SNA7_5kmx5km_mapping.RData", DIR$Input ) ) 
+Wider_prediction_grid <- Prediction_grid
 load( file = make.filename( "Prediction_grid_SNA7_5kmx5km.RData", DIR$Input ) )
- 
+
 #### Generate predictions for each fishing year of the time period with the estimated model
 Years <- as.numeric( min( Data$Year ) : max( Data$Year ) )
 areas_km2 <- 25
+log_densities_Isotropy <- log_densities_Anisotropy <- log_densities_Anisotropy_Barrier <- c()
 index_SPDE_Isotropy <- index_Regional_Anisotropy <- index_Regional_Anisotropy_Barrier <- NULL
 
 pb <- txtProgressBar( min = 0, max = length( Years ), style = 3 )
@@ -707,6 +710,10 @@ for( Year in Years ) {
 		"Lon" = Prediction_grid[,'Lon'], 
 		"Lat" = Prediction_grid[,'Lat'],
 		"var" = "density" )
+	newdata_2 <- data.frame( "Year" = Years[yr], 
+		"Lon" = Wider_prediction_grid[,'Lon'], 
+		"Lat" = Wider_prediction_grid[,'Lat'],
+		"var" = "density" )
 
   	## Generate predictions 
 	total_SPDE_Isotropy <- integrate_output( SPDE_Isotropy, 
@@ -721,13 +728,20 @@ for( Year in Years ) {
 		newdata = newdata, area = areas_km2 )
 	index_Regional_Anisotropy_Barrier <- cbind( index_Regional_Anisotropy_Barrier, 
 		total_Regional_Anisotropy_Barrier[c( 'Est. (bias.correct)', 'Std. Error' )] )
+	log_densities_Isotropy <- cbind( log_densities_Isotropy, 
+		predict( SPDE_Isotropy, newdata = newdata_2, what = "p_g" ) )
+	log_densities_Anisotropy <- cbind( log_densities_Anisotropy, 
+		predict( Regional_Anisotropy, newdata = newdata_2, what = "p_g" ) )
+	log_densities_Anisotropy_Barrier <- cbind( log_densities_Anisotropy_Barrier, 
+		predict( Regional_Anisotropy_Barrier, newdata = newdata_2, what = "p_g" ) )
 
 }
 
 close( pb )	
 
 #### Save predictions in a .RData file 
-save( Years, index_SPDE_Isotropy, index_Regional_Anisotropy, index_SPDE_Regional_Anisotropy_Barrier, 
+save( Years, index_SPDE_Isotropy, index_Regional_Anisotropy, index_Regional_Anisotropy_Barrier, 
+	log_densities_Isotropy, log_densities_Anisotropy, log_densities_Anisotropy_Barrier, 
 	file = make.filename( "Predictions_West_Coast_South_Island.RData", DIR$Output ) )
 
 ######## Produce a figure showing the indices of relative biomass predicted by tinyVAST models and save this figure
@@ -779,7 +793,7 @@ lines( Years, Biomass_Regional_Anisotropy_Barrier, col = "darkolivegreen3", type
 	ylab = "", xlab = "", cex.axis = 0.7 )
 abline( h = 1, col = "black", lwd = 1.3, lty = 2 )
 minor.tick( nx = 5, ny = 2 )
-legend( "topleft", c( "Isotropy", "Geographically varying anisotropy", "Geographically varying anisotropy + barriers" ), 
+legend( "topleft", c( "Isotropy", "Spatially stratified anisotropy", "Spatially stratified anisotropy + barriers" ), 
 	text.col = c( "cyan3", "red", "darkolivegreen3" ), 
 	bty = "n", cex = 0.9, horiz = FALSE )
 SavePlot( filename = "Indices of relative biomass for West Coast South Island snapper", path = DIR$Figures, type = "png" )
@@ -789,4 +803,413 @@ pause( 3 ); graphics.off()
 MannKendall( Biomass_SPDE_Isotropy ) ## tau = 0.965, 2-sided pvalue =< 2.22e-16
 MannKendall( Biomass_Regional_Anisotropy ) ## tau = 0.965, 2-sided pvalue =< 2.22e-16
 MannKendall( Biomass_Regional_Anisotropy_Barrier ) ## tau = 0.965, 2-sided pvalue =< 2.22e-16
+
+######## Produce maps showing the log-densities predicted by tinyVAST models for select years
+######## and save these maps
+#### Load and process tinyVAST model predictions and also load the prediction grid for mapping
+load( file = make.filename( "Predictions_West_Coast_South_Island.RData", DIR$Output ) )
+load( file = make.filename( "Wider_prediction_grid_SNA7_5kmx5km_mapping.RData", DIR$Input ) ) 
+Wider_prediction_grid <- Prediction_grid
+ 
+Log_density_Isotropy_2007 <- log_densities_Isotropy[,1]
+Log_density_Isotropy_2025 <- log_densities_Isotropy[,19]
+Log_density_Anisotropy_2007 <- log_densities_Anisotropy[,1]
+Log_density_Anisotropy_2025 <- log_densities_Anisotropy[,19]
+Log_density_Anisotropy_Barrier_2007 <- log_densities_Anisotropy_Barrier[,1]
+Log_density_Anisotropy_Barrier_2025 <- log_densities_Anisotropy_Barrier[,19]
+
+zlim_mapping <- c( Min( c( Log_density_Isotropy_2007, Log_density_Anisotropy_2007, Log_density_Anisotropy_Barrier_2007, 
+	Log_density_Isotropy_2025, Log_density_Anisotropy_2025, Log_density_Anisotropy_Barrier_2025 ) ), 
+	Max( c( Log_density_Isotropy_2007, Log_density_Anisotropy_2007, Log_density_Anisotropy_Barrier_2007, 
+	Log_density_Isotropy_2025, Log_density_Anisotropy_2025, Log_density_Anisotropy_Barrier_2025  ) ) ) 
+
+#### Produce a map showing the log-density in 2007 predicted by the tinyVAST model using the SPDE method
+#### and assuming isotropy
+scenario <- "SPDE_Isotropy_2007"
+Prediction_grid_1 <- Wider_prediction_grid
+Prediction_grid_1$Prediction <- Log_density_Isotropy_2007 
+
+## Produce a version of the map with a legend and save it 
+map_with_legend <- ggplot( ) +
+	geom_point( data = Prediction_grid_1, aes( Lon, Lat, col = Prediction ), alpha = 0.75 ) +
+	geom_sf( data = Mapping_parameters[["land_data"]], fill = "gray88", 
+		lwd = 0.2, na.rm = TRUE ) +
+	coord_sf( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ), 
+		ylim = c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	scale_colour_gradientn( colours = c( "darkblue", "blue", "lightblue",  
+		"lightgreen", "yellow", "orange", "red", "darkred" ), limits = zlim_mapping ) +
+	theme_light() +
+	xlim( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ) ) +
+	ylim( c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	xlab( "Longitude" ) + ylab( "Latitude" ) +
+	labs( colour = "" ) +
+  	theme( axis.title = element_text( size = rel( 1.5 ), face = "bold" ),
+		axis.text.x = element_text( size = 14 ),
+        	axis.text.y = element_text( size = 14 ),
+        	legend.text = element_text( size = rel( 1.5 ) ),
+        	legend.position = c( Mapping_parameters[["legend_position"]][1], 
+			Mapping_parameters[["legend_position"]][2] ) ) +
+	annotation_scale( location = "br", width_hint = 0.3, text_cex = 0.9, unit_category = "metric" ) + 
+	annotation_north_arrow( location = "tr", which_north = "true", 
+		height = unit( 1.5, "cm" ), width = unit( 1.5, "cm" ),
+  		pad_x = unit( 0.4, "cm" ), pad_y = unit( 0.4, "cm" ), style = north_arrow_fancy_orienteering )
+
+new.graph( 0.5 )
+print( map_with_legend )
+SavePlot( filename = paste0( "Log-density_", scenario, "_with a legend"  ), path = MapsDir, type = "png" )
+pause( 2 ); graphics.off()
+
+## Produce a version of the map without a legend and save it 
+map_with_legend <- ggplot( ) +
+	geom_point( data = Prediction_grid_1, aes( Lon, Lat, col = Prediction ), alpha = 0.75 ) +
+	geom_sf( data = Mapping_parameters[["land_data"]], fill = "gray88", 
+		lwd = 0.2, na.rm = TRUE ) +
+	coord_sf( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ), 
+		ylim = c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	scale_colour_gradientn( colours = c( "darkblue", "blue", "lightblue",  
+		"lightgreen", "yellow", "orange", "red", "darkred" ), limits = zlim_mapping ) +
+	theme_light() +
+	xlim( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ) ) +
+	ylim( c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	xlab( "Longitude" ) + ylab( "Latitude" ) +
+	labs( colour = "" ) +
+  	theme( axis.title = element_text( size = rel( 1.5 ), face = "bold" ),
+		axis.text.x = element_text( size = 14 ),
+        	axis.text.y = element_text( size = 14 ),
+        	legend.text = element_text( size = rel( 1.5 ) ),
+        	legend.position = "none" ) +
+	annotation_scale( location = "br", width_hint = 0.3, text_cex = 0.9, unit_category = "metric" ) + 
+	annotation_north_arrow( location = "tr", which_north = "true", 
+		height = unit( 1.5, "cm" ), width = unit( 1.5, "cm" ),
+  		pad_x = unit( 0.4, "cm" ), pad_y = unit( 0.4, "cm" ), style = north_arrow_fancy_orienteering )
+
+new.graph( 0.5 )
+print( map_with_legend )
+SavePlot( filename = paste0( "Log-density_", scenario, "_without a legend"  ), path = MapsDir, type = "png" )
+pause( 2 ); graphics.off()
+
+#### Produce a map showing the log-density in 2025 predicted by the tinyVAST model using the SPDE method
+#### and assuming isotropy
+scenario <- "SPDE_Isotropy_2025"
+Prediction_grid_1 <- Wider_prediction_grid
+Prediction_grid_1$Prediction <- Log_density_Isotropy_2025
+
+## Produce a version of the map with a legend and save it 
+map_with_legend <- ggplot( ) +
+	geom_point( data = Prediction_grid_1, aes( Lon, Lat, col = Prediction ), alpha = 0.75 ) +
+	geom_sf( data = Mapping_parameters[["land_data"]], fill = "gray88", 
+		lwd = 0.2, na.rm = TRUE ) +
+	coord_sf( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ), 
+		ylim = c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	scale_colour_gradientn( colours = c( "darkblue", "blue", "lightblue",  
+		"lightgreen", "yellow", "orange", "red", "darkred" ), limits = zlim_mapping ) +
+	theme_light() +
+	xlim( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ) ) +
+	ylim( c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	xlab( "Longitude" ) + ylab( "Latitude" ) +
+	labs( colour = "" ) +
+  	theme( axis.title = element_text( size = rel( 1.5 ), face = "bold" ),
+		axis.text.x = element_text( size = 14 ),
+        	axis.text.y = element_text( size = 14 ),
+        	legend.text = element_text( size = rel( 1.5 ) ),
+        	legend.position = c( Mapping_parameters[["legend_position"]][1], 
+			Mapping_parameters[["legend_position"]][2] ) ) +
+	annotation_scale( location = "br", width_hint = 0.3, text_cex = 0.9, unit_category = "metric" ) + 
+	annotation_north_arrow( location = "tr", which_north = "true", 
+		height = unit( 1.5, "cm" ), width = unit( 1.5, "cm" ),
+  		pad_x = unit( 0.4, "cm" ), pad_y = unit( 0.4, "cm" ), style = north_arrow_fancy_orienteering )
+
+new.graph( 0.5 )
+print( map_with_legend )
+SavePlot( filename = paste0( "Log-density_", scenario, "_with a legend"  ), path = MapsDir, type = "png" )
+pause( 2 ); graphics.off()
+
+## Produce a version of the map without a legend and save it 
+map_with_legend <- ggplot( ) +
+	geom_point( data = Prediction_grid_1, aes( Lon, Lat, col = Prediction ), alpha = 0.75 ) +
+	geom_sf( data = Mapping_parameters[["land_data"]], fill = "gray88", 
+		lwd = 0.2, na.rm = TRUE ) +
+	coord_sf( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ), 
+		ylim = c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	scale_colour_gradientn( colours = c( "darkblue", "blue", "lightblue",  
+		"lightgreen", "yellow", "orange", "red", "darkred" ), limits = zlim_mapping ) +
+	theme_light() +
+	xlim( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ) ) +
+	ylim( c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	xlab( "Longitude" ) + ylab( "Latitude" ) +
+	labs( colour = "" ) +
+  	theme( axis.title = element_text( size = rel( 1.5 ), face = "bold" ),
+		axis.text.x = element_text( size = 14 ),
+        	axis.text.y = element_text( size = 14 ),
+        	legend.text = element_text( size = rel( 1.5 ) ),
+        	legend.position = "none" ) +
+	annotation_scale( location = "br", width_hint = 0.3, text_cex = 0.9, unit_category = "metric" ) + 
+	annotation_north_arrow( location = "tr", which_north = "true", 
+		height = unit( 1.5, "cm" ), width = unit( 1.5, "cm" ),
+  		pad_x = unit( 0.4, "cm" ), pad_y = unit( 0.4, "cm" ), style = north_arrow_fancy_orienteering )
+
+new.graph( 0.5 )
+print( map_with_legend )
+SavePlot( filename = paste0( "Log-density_", scenario, "_without a legend"  ), path = MapsDir, type = "png" )
+pause( 2 ); graphics.off()
+
+#### Produce a map showing the log-density in 2007 predicted by the tinyVAST model using the SPDE method
+#### and covariate-based regional anisotropy
+scenario <- "Regional_Anisotropy_2007"
+Prediction_grid_1 <- Wider_prediction_grid
+Prediction_grid_1$Prediction <- Log_density_Anisotropy_2007 
+
+## Produce a version of the map with a legend and save it 
+map_with_legend <- ggplot( ) +
+	geom_point( data = Prediction_grid_1, aes( Lon, Lat, col = Prediction ), alpha = 0.75 ) +
+	geom_sf( data = Mapping_parameters[["land_data"]], fill = "gray88", 
+		lwd = 0.2, na.rm = TRUE ) +
+	coord_sf( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ), 
+		ylim = c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	scale_colour_gradientn( colours = c( "darkblue", "blue", "lightblue",  
+		"lightgreen", "yellow", "orange", "red", "darkred" ), limits = zlim_mapping ) +
+	theme_light() +
+	xlim( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ) ) +
+	ylim( c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	xlab( "Longitude" ) + ylab( "Latitude" ) +
+	labs( colour = "" ) +
+  	theme( axis.title = element_text( size = rel( 1.5 ), face = "bold" ),
+		axis.text.x = element_text( size = 14 ),
+        	axis.text.y = element_text( size = 14 ),
+        	legend.text = element_text( size = rel( 1.5 ) ),
+        	legend.position = c( Mapping_parameters[["legend_position"]][1], 
+			Mapping_parameters[["legend_position"]][2] ) ) +
+	annotation_scale( location = "br", width_hint = 0.3, text_cex = 0.9, unit_category = "metric" ) + 
+	annotation_north_arrow( location = "tr", which_north = "true", 
+		height = unit( 1.5, "cm" ), width = unit( 1.5, "cm" ),
+  		pad_x = unit( 0.4, "cm" ), pad_y = unit( 0.4, "cm" ), style = north_arrow_fancy_orienteering )
+
+new.graph( 0.5 )
+print( map_with_legend )
+SavePlot( filename = paste0( "Log-density_", scenario, "_with a legend"  ), path = MapsDir, type = "png" )
+pause( 2 ); graphics.off()
+
+## Produce a version of the map without a legend and save it 
+map_with_legend <- ggplot( ) +
+	geom_point( data = Prediction_grid_1, aes( Lon, Lat, col = Prediction ), alpha = 0.75 ) +
+	geom_sf( data = Mapping_parameters[["land_data"]], fill = "gray88", 
+		lwd = 0.2, na.rm = TRUE ) +
+	coord_sf( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ), 
+		ylim = c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	scale_colour_gradientn( colours = c( "darkblue", "blue", "lightblue",  
+		"lightgreen", "yellow", "orange", "red", "darkred" ), limits = zlim_mapping ) +
+	theme_light() +
+	xlim( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ) ) +
+	ylim( c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	xlab( "Longitude" ) + ylab( "Latitude" ) +
+	labs( colour = "" ) +
+  	theme( axis.title = element_text( size = rel( 1.5 ), face = "bold" ),
+		axis.text.x = element_text( size = 14 ),
+        	axis.text.y = element_text( size = 14 ),
+        	legend.text = element_text( size = rel( 1.5 ) ),
+        	legend.position = "none" ) +
+	annotation_scale( location = "br", width_hint = 0.3, text_cex = 0.9, unit_category = "metric" ) + 
+	annotation_north_arrow( location = "tr", which_north = "true", 
+		height = unit( 1.5, "cm" ), width = unit( 1.5, "cm" ),
+  		pad_x = unit( 0.4, "cm" ), pad_y = unit( 0.4, "cm" ), style = north_arrow_fancy_orienteering )
+
+new.graph( 0.5 )
+print( map_with_legend )
+SavePlot( filename = paste0( "Log-density_", scenario, "_without a legend"  ), path = MapsDir, type = "png" )
+pause( 2 ); graphics.off()
+
+#### Produce a map showing the log-density in 2025 predicted by the tinyVAST model using the SPDE method
+#### and covariate-based regional anisotropy
+scenario <- "Regional_Anisotropy_2025"
+Prediction_grid_1 <- Wider_prediction_grid
+Prediction_grid_1$Prediction <- Log_density_Anisotropy_2025
+
+## Produce a version of the map with a legend and save it 
+map_with_legend <- ggplot( ) +
+	geom_point( data = Prediction_grid_1, aes( Lon, Lat, col = Prediction ), alpha = 0.75 ) +
+	geom_sf( data = Mapping_parameters[["land_data"]], fill = "gray88", 
+		lwd = 0.2, na.rm = TRUE ) +
+	coord_sf( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ), 
+		ylim = c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	scale_colour_gradientn( colours = c( "darkblue", "blue", "lightblue",  
+		"lightgreen", "yellow", "orange", "red", "darkred" ), limits = zlim_mapping ) +
+	theme_light() +
+	xlim( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ) ) +
+	ylim( c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	xlab( "Longitude" ) + ylab( "Latitude" ) +
+	labs( colour = "" ) +
+  	theme( axis.title = element_text( size = rel( 1.5 ), face = "bold" ),
+		axis.text.x = element_text( size = 14 ),
+        	axis.text.y = element_text( size = 14 ),
+        	legend.text = element_text( size = rel( 1.5 ) ),
+        	legend.position = c( Mapping_parameters[["legend_position"]][1], 
+			Mapping_parameters[["legend_position"]][2] ) ) +
+	annotation_scale( location = "br", width_hint = 0.3, text_cex = 0.9, unit_category = "metric" ) + 
+	annotation_north_arrow( location = "tr", which_north = "true", 
+		height = unit( 1.5, "cm" ), width = unit( 1.5, "cm" ),
+  		pad_x = unit( 0.4, "cm" ), pad_y = unit( 0.4, "cm" ), style = north_arrow_fancy_orienteering )
+
+new.graph( 0.5 )
+print( map_with_legend )
+SavePlot( filename = paste0( "Log-density_", scenario, "_with a legend"  ), path = MapsDir, type = "png" )
+pause( 2 ); graphics.off()
+
+## Produce a version of the map without a legend and save it 
+map_with_legend <- ggplot( ) +
+	geom_point( data = Prediction_grid_1, aes( Lon, Lat, col = Prediction ), alpha = 0.75 ) +
+	geom_sf( data = Mapping_parameters[["land_data"]], fill = "gray88", 
+		lwd = 0.2, na.rm = TRUE ) +
+	coord_sf( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ), 
+		ylim = c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	scale_colour_gradientn( colours = c( "darkblue", "blue", "lightblue",  
+		"lightgreen", "yellow", "orange", "red", "darkred" ), limits = zlim_mapping ) +
+	theme_light() +
+	xlim( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ) ) +
+	ylim( c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	xlab( "Longitude" ) + ylab( "Latitude" ) +
+	labs( colour = "" ) +
+  	theme( axis.title = element_text( size = rel( 1.5 ), face = "bold" ),
+		axis.text.x = element_text( size = 14 ),
+        	axis.text.y = element_text( size = 14 ),
+        	legend.text = element_text( size = rel( 1.5 ) ),
+        	legend.position = "none" ) +
+	annotation_scale( location = "br", width_hint = 0.3, text_cex = 0.9, unit_category = "metric" ) + 
+	annotation_north_arrow( location = "tr", which_north = "true", 
+		height = unit( 1.5, "cm" ), width = unit( 1.5, "cm" ),
+  		pad_x = unit( 0.4, "cm" ), pad_y = unit( 0.4, "cm" ), style = north_arrow_fancy_orienteering )
+
+new.graph( 0.5 )
+print( map_with_legend )
+SavePlot( filename = paste0( "Log-density_", scenario, "_without a legend"  ), path = MapsDir, type = "png" )
+pause( 2 ); graphics.off()
+
+#### Produce a map showing the log-density in 2007 predicted by the tinyVAST model using the SPDE-Barrier method
+#### and covariate-based regional anisotropy
+scenario <- "Regional_Anisotropy_Barrier_2007"
+Prediction_grid_1 <- Wider_prediction_grid
+Prediction_grid_1$Prediction <- Log_density_Anisotropy_Barrier_2007 
+
+## Produce a version of the map with a legend and save it 
+map_with_legend <- ggplot( ) +
+	geom_point( data = Prediction_grid_1, aes( Lon, Lat, col = Prediction ), alpha = 0.75 ) +
+	geom_sf( data = Mapping_parameters[["land_data"]], fill = "gray88", 
+		lwd = 0.2, na.rm = TRUE ) +
+	coord_sf( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ), 
+		ylim = c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	scale_colour_gradientn( colours = c( "darkblue", "blue", "lightblue",  
+		"lightgreen", "yellow", "orange", "red", "darkred" ), limits = zlim_mapping ) +
+	theme_light() +
+	xlim( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ) ) +
+	ylim( c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	xlab( "Longitude" ) + ylab( "Latitude" ) +
+	labs( colour = "" ) +
+  	theme( axis.title = element_text( size = rel( 1.5 ), face = "bold" ),
+		axis.text.x = element_text( size = 14 ),
+        	axis.text.y = element_text( size = 14 ),
+        	legend.text = element_text( size = rel( 1.5 ) ),
+        	legend.position = c( Mapping_parameters[["legend_position"]][1], 
+			Mapping_parameters[["legend_position"]][2] ) ) +
+	annotation_scale( location = "br", width_hint = 0.3, text_cex = 0.9, unit_category = "metric" ) + 
+	annotation_north_arrow( location = "tr", which_north = "true", 
+		height = unit( 1.5, "cm" ), width = unit( 1.5, "cm" ),
+  		pad_x = unit( 0.4, "cm" ), pad_y = unit( 0.4, "cm" ), style = north_arrow_fancy_orienteering )
+
+new.graph( 0.5 )
+print( map_with_legend )
+SavePlot( filename = paste0( "Log-density_", scenario, "_with a legend"  ), path = MapsDir, type = "png" )
+pause( 2 ); graphics.off()
+
+## Produce a version of the map without a legend and save it 
+map_with_legend <- ggplot( ) +
+	geom_point( data = Prediction_grid_1, aes( Lon, Lat, col = Prediction ), alpha = 0.75 ) +
+	geom_sf( data = Mapping_parameters[["land_data"]], fill = "gray88", 
+		lwd = 0.2, na.rm = TRUE ) +
+	coord_sf( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ), 
+		ylim = c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	scale_colour_gradientn( colours = c( "darkblue", "blue", "lightblue",  
+		"lightgreen", "yellow", "orange", "red", "darkred" ), limits = zlim_mapping ) +
+	theme_light() +
+	xlim( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ) ) +
+	ylim( c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	xlab( "Longitude" ) + ylab( "Latitude" ) +
+	labs( colour = "" ) +
+  	theme( axis.title = element_text( size = rel( 1.5 ), face = "bold" ),
+		axis.text.x = element_text( size = 14 ),
+        	axis.text.y = element_text( size = 14 ),
+        	legend.text = element_text( size = rel( 1.5 ) ),
+        	legend.position = "none" ) +
+	annotation_scale( location = "br", width_hint = 0.3, text_cex = 0.9, unit_category = "metric" ) + 
+	annotation_north_arrow( location = "tr", which_north = "true", 
+		height = unit( 1.5, "cm" ), width = unit( 1.5, "cm" ),
+  		pad_x = unit( 0.4, "cm" ), pad_y = unit( 0.4, "cm" ), style = north_arrow_fancy_orienteering )
+
+new.graph( 0.5 )
+print( map_with_legend )
+SavePlot( filename = paste0( "Log-density_", scenario, "_without a legend"  ), path = MapsDir, type = "png" )
+pause( 2 ); graphics.off()
+
+#### Produce a map showing the log-density in 2025 predicted by the tinyVAST model using the SPDE-Barrier method
+#### and covariate-based regional anisotropy
+scenario <- "Regional_Anisotropy_Barrier_2025"
+Prediction_grid_1 <- Wider_prediction_grid
+Prediction_grid_1$Prediction <- Log_density_Anisotropy_Barrier_2025
+
+## Produce a version of the map with a legend and save it 
+map_with_legend <- ggplot( ) +
+	geom_point( data = Prediction_grid_1, aes( Lon, Lat, col = Prediction ), alpha = 0.75 ) +
+	geom_sf( data = Mapping_parameters[["land_data"]], fill = "gray88", 
+		lwd = 0.2, na.rm = TRUE ) +
+	coord_sf( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ), 
+		ylim = c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	scale_colour_gradientn( colours = c( "darkblue", "blue", "lightblue",  
+		"lightgreen", "yellow", "orange", "red", "darkred" ), limits = zlim_mapping ) +
+	theme_light() +
+	xlim( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ) ) +
+	ylim( c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	xlab( "Longitude" ) + ylab( "Latitude" ) +
+	labs( colour = "" ) +
+  	theme( axis.title = element_text( size = rel( 1.5 ), face = "bold" ),
+		axis.text.x = element_text( size = 14 ),
+        	axis.text.y = element_text( size = 14 ),
+        	legend.text = element_text( size = rel( 1.5 ) ),
+        	legend.position = c( Mapping_parameters[["legend_position"]][1], 
+			Mapping_parameters[["legend_position"]][2] ) ) +
+	annotation_scale( location = "br", width_hint = 0.3, text_cex = 0.9, unit_category = "metric" ) + 
+	annotation_north_arrow( location = "tr", which_north = "true", 
+		height = unit( 1.5, "cm" ), width = unit( 1.5, "cm" ),
+  		pad_x = unit( 0.4, "cm" ), pad_y = unit( 0.4, "cm" ), style = north_arrow_fancy_orienteering )
+
+new.graph( 0.5 )
+print( map_with_legend )
+SavePlot( filename = paste0( "Log-density_", scenario, "_with a legend"  ), path = MapsDir, type = "png" )
+pause( 2 ); graphics.off()
+
+## Produce a version of the map without a legend and save it 
+map_with_legend <- ggplot( ) +
+	geom_point( data = Prediction_grid_1, aes( Lon, Lat, col = Prediction ), alpha = 0.75 ) +
+	geom_sf( data = Mapping_parameters[["land_data"]], fill = "gray88", 
+		lwd = 0.2, na.rm = TRUE ) +
+	coord_sf( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ), 
+		ylim = c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	scale_colour_gradientn( colours = c( "darkblue", "blue", "lightblue",  
+		"lightgreen", "yellow", "orange", "red", "darkred" ), limits = zlim_mapping ) +
+	theme_light() +
+	xlim( xlim = c( Mapping_parameters[["xlim_map"]][1], Mapping_parameters[["xlim_map"]][2] ) ) +
+	ylim( c( Mapping_parameters[["ylim_map"]][1], Mapping_parameters[["ylim_map"]][2] ) ) +
+	xlab( "Longitude" ) + ylab( "Latitude" ) +
+	labs( colour = "" ) +
+  	theme( axis.title = element_text( size = rel( 1.5 ), face = "bold" ),
+		axis.text.x = element_text( size = 14 ),
+        	axis.text.y = element_text( size = 14 ),
+        	legend.text = element_text( size = rel( 1.5 ) ),
+        	legend.position = "none" ) +
+	annotation_scale( location = "br", width_hint = 0.3, text_cex = 0.9, unit_category = "metric" ) + 
+	annotation_north_arrow( location = "tr", which_north = "true", 
+		height = unit( 1.5, "cm" ), width = unit( 1.5, "cm" ),
+  		pad_x = unit( 0.4, "cm" ), pad_y = unit( 0.4, "cm" ), style = north_arrow_fancy_orienteering )
+
+new.graph( 0.5 )
+print( map_with_legend )
+SavePlot( filename = paste0( "Log-density_", scenario, "_without a legend"  ), path = MapsDir, type = "png" )
+pause( 2 ); graphics.off()
 
