@@ -63,6 +63,8 @@ barrier_stiffness <- 0.04
 cellsize <- 0.5 * c( 1, 1 )
 
 ######## Load and process data
+cache_data()
+load_sql_data()
 d <- get_data( "sablefish" )
 Data <- as.data.frame( d )[,c( 'survey_name', 'lat_start', 'lon_start', 'effort', 'catch_weight' )]
 Data <- na.omit( Data )
