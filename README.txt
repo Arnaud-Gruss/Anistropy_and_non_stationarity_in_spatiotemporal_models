@@ -4,7 +4,8 @@
 ##
 ##############################################################################################################################
 
-In this repository, you will find all necessary materials for the non-stationarity paper. 
+In this repository, you will find all necessary materials for the paper on anisotropy and non-stationarity in
+spatio-temporal models. 
 All analyses are conducted within the R software environment. 
 
 Please also note the following:
